@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<title>Everything that can be wrong with a page, in one page, for testing purposes only and deliberately far too long</title>
+<title>A second title, courtesy of a plugin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://a-completely-different-domain.example/">
+<link rel="canonical" href="/broken/index.html">
+<script src="/blocking.js"></script>
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "Organization", "name": "Broken", }
+</script>
+<style>
+  body { font-family: sans-serif; background: #fff; color: #bfbfbf; }
+  .btn { background: #ddd; color: #eee; border: none; padding: 4px 6px; }
+  a:focus { outline: none; }
+  .wide { width: 1400px; }
+</style>
+</head>
+<body>
+<div class="wide">
+  <img src="/logo.png">
+  <div onclick="void 0">Open the menu</div>
+  <h3>A heading that starts at level three</h3>
+  <p>Low contrast body copy that no one can read comfortably.</p>
+  <form>
+    <input type="text" placeholder="Your email">
+    <button class="btn"></button>
+  </form>
+  <a href="/broken/second.html">Read more</a>
+  <a href="/broken/second.html">Read more</a>
+  <img src="http://insecure.example/tracker.gif" alt="">
+  <table>
+    <tr><td>Region</td><td>Total</td></tr>
+    <tr><td>North</td><td>12</td></tr>
+  </table>
+</div>
+</body>
+</html>
