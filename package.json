@@ -1,0 +1,43 @@
+{
+  "name": "site-audit-cli",
+  "version": "1.0.0",
+  "description": "One command that audits a page for accessibility, Core Web Vitals, technical SEO and response-header security, and states plainly which failures a machine cannot find.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Abdullah Shabbir",
+  "bin": {
+    "site-audit": "bin/site-audit.mjs"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "files": [
+    "bin",
+    "src",
+    "siteaudit.config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "check": "node --check bin/site-audit.mjs",
+    "demo": "node bin/site-audit.mjs --help"
+  },
+  "keywords": [
+    "accessibility",
+    "wcag",
+    "axe-core",
+    "core-web-vitals",
+    "seo",
+    "security-headers",
+    "audit",
+    "cli",
+    "lighthouse-alternative"
+  ],
+  "dependencies": {
+    "@axe-core/puppeteer": "^4.13.0",
+    "axe-core": "^4.13.0",
+    "cheerio": "^1.0.0",
+    "puppeteer": "^25.10.0"
+  }
+}

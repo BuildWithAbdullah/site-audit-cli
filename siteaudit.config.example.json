@@ -1,0 +1,15 @@
+{
+  "modules": ["accessibility", "performance", "seo", "security"],
+  "crawl": {
+    "maxPages": 1,
+    "exclude": ["/cart", "/checkout", "/account", "\\.pdf$"]
+  },
+  "budgets": {
+    "accessibility": { "critical": 0, "serious": 0 },
+    "performance": { "lcpMs": 2500, "clsScore": 0.1, "tbtMs": 200, "totalBytes": 2000000 },
+    "seo": { "critical": 0, "serious": 1 },
+    "security": { "critical": 0, "serious": 3 }
+  },
+  "viewport": { "width": 1366, "height": 768 },
+  "timeoutMs": 45000
+}
