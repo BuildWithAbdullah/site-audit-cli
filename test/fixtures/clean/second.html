@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A page built the way the library says to build it</title>
+<meta name="description" content="A fixture page that is expected to produce no automated accessibility findings.">
+<link rel="canonical" href="/clean/index.html">
+<meta property="og:title" content="A correct page">
+<meta property="og:description" content="Used to prove the audit stays quiet when nothing is wrong.">
+<meta property="og:image" content="/og.png">
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "Organization", "name": "Clean" }
+</script>
+<style>
+  body { font-family: system-ui, sans-serif; background: #ffffff; color: #1a1a1a; margin: 0; }
+  main { max-width: 40rem; padding: 1rem; }
+  a { color: #0b4fc4; display: inline-block; padding: .4rem .2rem; }
+  a:focus-visible, button:focus-visible { outline: 3px solid #0b4fc4; outline-offset: 2px; }
+  .skip { position: absolute; left: -9999px; padding: .6rem 1rem; background: #0b4fc4; color: #fff; }
+  .skip:focus { left: 0; }
+  button { background: #0b4fc4; color: #ffffff; border: 1px solid #0b4fc4; padding: .6rem 1rem; font: inherit; }
+  input { border: 1px solid #56606e; padding: .5rem; font: inherit; }
+  th, td { border: 1px solid #56606e; padding: .4rem .6rem; text-align: left; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><nav aria-label="Primary"><a href="/clean/second.html">Second page</a></nav></header>
+<main id="main">
+  <h1>A correct page</h1>
+  <p>Body copy with enough contrast to be read, inside a landmark, under a single top level heading.</p>
+  <h2>A form</h2>
+  <form action="/clean/index.html" method="get">
+    <label for="email">Email address</label>
+    <input id="email" name="email" type="email" autocomplete="email">
+    <button type="submit">Subscribe</button>
+  </form>
+  <h2>A table</h2>
+  <table>
+    <caption>Totals by region</caption>
+    <thead><tr><th scope="col">Region</th><th scope="col">Total</th></tr></thead>
+    <tbody><tr><th scope="row">North</th><td>12</td></tr></tbody>
+  </table>
+</main>
+<footer><p>Fixture footer.</p></footer>
+</body>
+</html>
