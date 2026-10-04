@@ -9,17 +9,20 @@
     "site-audit": "bin/site-audit.mjs"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.12.0"
   },
   "files": [
     "bin",
     "src",
+    "tools",
     "siteaudit.config.example.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test \"test/**/*.test.mjs\"",
+    "test": "node --test test/budgets.test.mjs test/catalogue.test.mjs test/end-to-end.test.mjs test/report.test.mjs test/security.test.mjs test/seo.test.mjs",
+    "verify": "node tools/verify.mjs",
+    "docs": "node tools/catalogue-doc.mjs",
     "check": "node --check bin/site-audit.mjs",
     "demo": "node bin/site-audit.mjs --help"
   },

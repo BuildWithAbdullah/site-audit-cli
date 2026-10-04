@@ -73,7 +73,13 @@ npm install
 node bin/site-audit.mjs https://example.com
 ```
 
-Node 20.11 or newer. The first run downloads a Chrome build for Puppeteer. Set
+Node 22.12 or newer. That floor is not a preference. Puppeteer 25 declares
+`>=22.12.0` and cheerio declares `>=20.18.1`, so any lower range would be a
+range this package cannot actually install on. `npm run verify` reads the
+engines field of every installed dependency and fails if the number advertised
+here ever drifts below the strictest one in the tree.
+
+The first run downloads a Chrome build for Puppeteer. Set
 `PUPPETEER_EXECUTABLE_PATH` to reuse a Chrome you already have.
 
 ## Usage
@@ -202,14 +208,34 @@ There is no score out of 100 anywhere, and there will not be. A percentage
 invites a client to chase the number rather than the failures, and no honest
 percentage exists while most of the criteria can only be judged by a person.
 
+## Every finding, listed and driven
+
+`src/catalogue.mjs` lists every finding this tool can emit: 53 catalogued
+findings, plus 3 open families for the ids that carry a value read from the
+page, plus the 11 manual checks, read from the register rather than copied
+beside it.
+
+A list like that is decoration unless something holds it against the code, so
+`test/catalogue.test.mjs` drives 52 of the 53 out of real calls into the real
+modules, then asserts the collected set covers the catalogue exactly, in both
+directions. An id in the catalogue that no call produces is a failure. An id a
+call produces that the catalogue does not list is a failure too. One finding,
+`run/console-errors`, is catalogued as not driven, with the reason written next
+to it rather than left for a reader to work out.
+
+`docs/04-every-finding.md` is generated from the catalogue by `npm run docs`,
+and CI runs `npm run docs -- --check`, so the document cannot quietly fall
+behind the code it documents.
+
 ## Verifying
 
 ```bash
 npm install
 npm test
+npm run verify
 ```
 
-38 tests. Two fixture sites are served locally and audited end to end: one built
+50 tests. Two fixture sites are served locally and audited end to end: one built
 wrong on purpose, and one built correctly, which is the more useful of the two.
 A tool that reports something on every page is easy to write and gets its
 findings ignored wholesale. The clean fixture asserts the audit stays quiet
@@ -220,6 +246,15 @@ useless CSP, a header and a meta tag that disagree about indexing, a heading
 skip reported once rather than once per heading, HTML escaped rather than
 rendered in the report, and a module that failed to run failing the budget
 instead of passing it.
+
+`npm run verify` asks a different question. Instead of auditing a page it makes
+351 assertions about this repository: that every file in `test/` is
+named in the test script, so a new test cannot be added and silently never run;
+that the Node range above is one the dependency tree can install on; that CI
+runs more than one Node version and runs the oldest one claimed; that the
+thresholds quoted in this README are the thresholds the code uses; and that the
+catalogue and the modules agree. It runs in CI on every push, and it found four
+real defects in this repository the first time it was pointed at it.
 
 ## Scope, honestly
 
