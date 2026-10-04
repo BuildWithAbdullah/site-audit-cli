@@ -9,11 +9,29 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
       - run: npm install
       - run: npm run check
       - run: npm test
+      - run: npm run verify
+      - run: npm run docs -- --check
+
+  engines:
+    # package.json claims a minimum Node version. This job installs on exactly
+    # that version with npm enforcing every engines range in the tree, so the
+    # claim is tested rather than asserted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - run: npm install --engine-strict
