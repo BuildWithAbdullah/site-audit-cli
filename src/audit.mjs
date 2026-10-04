@@ -31,13 +31,30 @@ export async function runAudit(startUrl, options = {}) {
   onProgress({ phase: 'discovered', urls });
 
   let browser = null;
-  if (needsBrowser) browser = await launchBrowser();
+  let launchError = null;
+  if (needsBrowser) {
+    try {
+      browser = await launchBrowser();
+    } catch (error) {
+      // The rule this tool argues for is that a check which did not run is a
+      // finding and not a silent pass. That rule was enforced for a page the
+      // browser could not open and not for a browser that never started, so a
+      // machine without Chrome threw out of the whole run: no report, and
+      // nothing from the SEO and security modules, neither of which ever
+      // needed a browser. A launch failure is now the same kind of event as a
+      // page failure, reported per page and per module.
+      launchError = error;
+      onProgress({ phase: 'browser-unavailable', message: String(error.message) });
+    }
+  }
 
   const pages = [];
   try {
     for (const [index, url] of urls.entries()) {
       onProgress({ phase: 'page', url, index, total: urls.length });
-      pages.push(await auditPage(url, { browser, modules, budgets, viewport, timeoutMs }));
+      pages.push(
+        await auditPage(url, { browser, launchError, modules, budgets, viewport, timeoutMs }),
+      );
     }
   } finally {
     if (browser) await browser.close();
@@ -67,7 +84,7 @@ export async function runAudit(startUrl, options = {}) {
   };
 }
 
-async function auditPage(url, { browser, modules, budgets, viewport, timeoutMs }) {
+async function auditPage(url, { browser, launchError = null, modules, budgets, viewport, timeoutMs }) {
   const findings = [];
   let metrics = null;
   let automated = null;
@@ -108,7 +125,21 @@ async function auditPage(url, { browser, modules, budgets, viewport, timeoutMs }
     }
   }
 
-  if (browser && (modules.includes('accessibility') || modules.includes('performance'))) {
+  const browserModules = modules.filter((m) => m === 'accessibility' || m === 'performance');
+
+  if (browserModules.length > 0 && !browser) {
+    findings.push(
+      ...didNotRun(
+        browserModules,
+        launchError
+          ? `The browser could not be started: ${launchError.message}`
+          : 'No browser was started for this run.',
+      ),
+    );
+    if (launchError) errors.push(`browser: ${launchError.message}`);
+  }
+
+  if (browser && browserModules.length > 0) {
     let page = null;
     try {
       const opened = await openPage(browser, url, { viewport, timeoutMs, userAgent: USER_AGENT });
@@ -127,23 +158,7 @@ async function auditPage(url, { browser, modules, budgets, viewport, timeoutMs }
       }
     } catch (error) {
       errors.push(`browser: ${error.message}`);
-      // A module that did not run is not a module that found nothing. Without
-      // this, a page the browser could not open reports zero accessibility
-      // violations and passes its budget, which is the precise failure mode
-      // this tool exists to argue against.
-      for (const name of modules.filter((m) => m === 'accessibility' || m === 'performance')) {
-        findings.push(
-          finding({
-            id: `run/${name}-did-not-run`,
-            module: name,
-            severity: 'serious',
-            title: `The ${name} module did not run on this page`,
-            detail:
-              'The page could not be opened in a browser, so these checks were never performed. This page is unaudited for them, which is not the same as clean, and the budget fails accordingly.',
-            evidence: truncate(String(error.message), 160),
-          }),
-        );
-      }
+      findings.push(...didNotRun(browserModules, String(error.message)));
     } finally {
       if (page) await page.close().catch(() => {});
     }
@@ -175,4 +190,28 @@ async function auditPage(url, { browser, modules, budgets, viewport, timeoutMs }
     automated,
     errors,
   };
+}
+
+/**
+ * A module that did not run is not a module that found nothing.
+ *
+ * Without this, a page the browser could not open reports zero accessibility
+ * violations and zero performance problems, which is the precise failure mode
+ * this tool exists to argue against. Emitted at `serious` so the accessibility
+ * severity budget fails; `evaluateBudgets` carries the matching rule for
+ * performance, whose budget is read from metrics and so had no route to fail
+ * on absent ones.
+ */
+function didNotRun(moduleNames, reason) {
+  return moduleNames.map((name) =>
+    finding({
+      id: `run/${name}-did-not-run`,
+      module: name,
+      severity: 'serious',
+      title: `The ${name} module did not run on this page`,
+      detail:
+        'These checks were never performed, so this page is unaudited for them. Unaudited is not the same as clean, and the budget fails accordingly.',
+      evidence: truncate(reason, 160),
+    }),
+  );
 }

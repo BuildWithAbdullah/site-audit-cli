@@ -59,6 +59,26 @@ export function evaluateBudgets(pages, budgets = DEFAULT_BUDGETS) {
         unit,
       });
     }
+
+    // A performance budget read from metrics cannot fail on metrics that were
+    // never collected. Every row above is skipped when a page has none, so a
+    // run where the browser never started produced no performance rows at all
+    // and `passed` came back true for the module, vacuously. Accessibility
+    // never had this hole, because its budget counts severities and the
+    // did-not-run finding is serious. This is the equivalent rule.
+    const unmeasured = pages.filter((p) =>
+      p.findings.some((f) => f.id === 'run/performance-did-not-run'),
+    ).length;
+    if (unmeasured > 0) {
+      results.push({
+        module: 'performance',
+        metric: 'pagesUnmeasured',
+        limit: 0,
+        actual: unmeasured,
+        passed: unmeasured <= 0,
+        unit: 'pages',
+      });
+    }
   }
 
   return { results, passed: results.every((r) => r.passed) };
