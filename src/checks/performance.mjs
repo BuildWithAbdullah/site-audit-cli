@@ -16,6 +16,21 @@ import { finding, truncate } from '../util/severity.mjs';
  */
 export async function auditPerformance(page, { budgets = {} } = {}) {
   const metrics = await collect(page);
+  return { findings: judgePerformance(metrics, budgets), metrics };
+}
+
+/**
+ * Judgement, separated from collection on purpose.
+ *
+ * Collection needs a browser. Deciding whether 3100ms is a finding does not,
+ * and while the two were one function every threshold in this module was
+ * unreachable in a test without launching Chrome. That is how a repository
+ * ends up with thresholds nobody has ever seen fire.
+ *
+ * `metrics` is the shape `collect` returns and nothing else. If you can
+ * describe the page as numbers, you can get this module's verdict on it.
+ */
+export function judgePerformance(metrics, budgets = {}) {
   const findings = [];
 
   const lcpBudget = budgets.lcpMs ?? 2500;
@@ -143,7 +158,7 @@ export async function auditPerformance(page, { budgets = {} } = {}) {
     );
   }
 
-  return { findings, metrics };
+  return findings;
 }
 
 async function collect(page) {

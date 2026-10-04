@@ -23,7 +23,18 @@ const IMPACT_TO_SEVERITY = {
 
 export async function auditAccessibility(page, { tags = DEFAULT_TAGS } = {}) {
   const results = await new AxePuppeteer(page).withTags(tags).analyze();
+  return judgeAccessibility(results, { tags });
+}
 
+/**
+ * Judgement, separated from collection on purpose.
+ *
+ * Everything below is a pure function of an axe-core result object, so the
+ * impact mapping and the tag arithmetic can be tested against a recorded
+ * result rather than against a live browser. The one line that needs Chrome
+ * is the line above.
+ */
+export function judgeAccessibility(results, { tags = DEFAULT_TAGS } = {}) {
   const findings = results.violations.map((violation) =>
     finding({
       id: `a11y/${violation.id}`,
