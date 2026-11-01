@@ -15,16 +15,20 @@
     "bin",
     "src",
     "tools",
+    "examples",
     "siteaudit.config.example.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/budgets.test.mjs test/catalogue.test.mjs test/end-to-end.test.mjs test/report.test.mjs test/security.test.mjs test/seo.test.mjs",
+    "test": "node --test test/budgets.test.mjs test/catalogue.test.mjs test/cli.test.mjs test/end-to-end.test.mjs test/limits.test.mjs test/pairs.test.mjs test/report.test.mjs test/security.test.mjs test/seo.test.mjs",
     "verify": "node tools/verify.mjs",
     "docs": "node tools/catalogue-doc.mjs",
-    "check": "node --check bin/site-audit.mjs",
-    "demo": "node bin/site-audit.mjs --help"
+    "demo": "node bin/site-audit.mjs --help",
+    "count-tests": "node tools/count-tests.mjs",
+    "exit-codes": "node tools/exit-codes.mjs",
+    "entry-thin": "node tools/entry-thin.mjs",
+    "tracked": "node tools/tracked.mjs"
   },
   "keywords": [
     "accessibility",

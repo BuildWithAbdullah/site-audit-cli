@@ -210,22 +210,99 @@ percentage exists while most of the criteria can only be judged by a person.
 
 ## Every finding, listed and driven
 
-`src/catalogue.mjs` lists every finding this tool can emit: 53 catalogued
-findings, plus 3 open families for the ids that carry a value read from the
-page, plus the 11 manual checks, read from the register rather than copied
-beside it.
+`src/catalogue.mjs` lists every finding this tool can emit: 54 catalogued findings,
+plus 3 open families for the ids that carry a value read from the page,
+plus the 11 manual checks, read from the register rather than copied beside it.
 
-A list like that is decoration unless something holds it against the code, so
-`test/catalogue.test.mjs` drives 52 of the 53 out of real calls into the real
-modules, then asserts the collected set covers the catalogue exactly, in both
-directions. An id in the catalogue that no call produces is a failure. An id a
-call produces that the catalogue does not list is a failure too. One finding,
-`run/console-errors`, is catalogued as not driven, with the reason written next
-to it rather than left for a reader to work out.
+Every entry also declares the complete set of severities it can be emitted at,
+and that is asserted in both directions. A severity a real finding carries and
+the entry does not declare is a failure; a severity an entry declares that no
+test has ever produced is a failure too. The second direction is the one that
+earns its keep. Ten entries choose their severity from the value they found,
+and until the set was declared only one side of each of those ten had ever
+run. Driving the other side is where `sec/hsts-invalid` came from: a
+`Strict-Transport-Security` header with no `max-age` directive parsed as a
+`max-age` of zero, so the most broken form of the header was reported as a
+deliberate decision to switch the policy off, with the subdomain coverage
+reported as fine.
+
+A list is decoration unless something holds it against the code, so
+`test/catalogue.test.mjs` drives the catalogue out of real calls into the real
+modules and asserts the collected set covers it exactly, in both directions.
+One finding, `run/console-errors`, is catalogued as not driven, with the reason
+written next to it rather than left for a reader to work out.
 
 `docs/04-every-finding.md` is generated from the catalogue by `npm run docs`,
 and CI runs `npm run docs -- --check`, so the document cannot quietly fall
 behind the code it documents.
+
+## The examples, as pairs
+
+`examples/` holds 15 example pairs, as `<pair>.before.html` and
+`<pair>.after.html`. Each one is the same page twice, with the defect and
+without it, because a corrected page on its own proves nothing: a reader
+cannot tell whether the tool would have said anything about the version that
+was wrong.
+
+Everything else about a side is declared on the side itself in
+`tools/pairs.mjs`: the response status, the headers, the cookies, the redirect
+chain, and the findings it produces as a map from id to severity. Both sides
+are compared with `deepEqual`, so an extra finding fails exactly as loudly as
+a missing one.
+Declaring the severity rather than a bare id list is what makes
+`examples/server-error` possible: correcting a 500 to a 404 removes no finding
+at all and changes one severity from critical to serious, which is what a
+responder needs to see and what a pass or fail flag hides.
+
+One pair, `examples/canonical-elsewhere`, is a deliberately partial
+correction, and says so in the manifest: it trades one serious finding for one
+minor one. Every other pair either clears what it reports or keeps it
+unchanged, and the test asserts that a corrected side never introduces a
+finding the broken side did not have unless the pair declares itself partial
+and says what it trades.
+
+Fifteen pages cannot reach fifty four findings, and a repository that pretends
+otherwise is hiding where its coverage comes from: the pairs reach 40 of them,
+and the rest are reached by constructed cases in the module test files. The
+number is asserted, so it cannot drift quietly.
+
+Each side is then run a second time over real HTTP, served by
+`tools/pair-server.mjs` and fetched with the code the binary uses. The
+served result is compared against a set derived from the declared one by
+applying two adjustments as code, not per pair: a page served over plain HTTP
+reports `sec/no-https` and, because the harness answers 404 for robots.txt,
+`seo/robots-missing`, while the four HSTS findings and mixed content are not
+judged at all, since on a page with no TLS every subresource is insecure and
+singling one out would say nothing. No pair may add an entry to its own
+manifest to cover a difference, and the suite asserts each adjustment is
+actually needed.
+
+## What this tool cannot tell you
+
+6 declared limits, in `src/limits.mjs`, each naming what the verdict is **not**
+evidence about, and each asserted in both directions by a test of the name the
+limit itself records:
+
+| Limit | Not evidence about |
+|---|---|
+| An automated accessibility pass with no violations | the eleven criteria a person has to decide |
+| A performance verdict | field performance, and the pass is a function of the budget |
+| A header check | any other URL on the same origin |
+| Every SEO finding here | content quality, or ranking |
+| The SEO and security modules | what the page looks like after its scripts have run |
+| A crawl of n pages | the pages that were not audited |
+
+Two of them carry all four combinations. The accessibility one shows the
+automated verdict and the manual register are independent: the register comes
+out identical whether axe found a critical violation or nothing at all, and it
+is never empty, so a clean automated pass is never a clean page. The
+performance one shows the same fast page failing a strict budget and the same
+slow page passing a generous one, so neither passing nor failing is a property
+of the page.
+
+A limit stated in a paragraph is a claim. A limit stated in an assertion is a
+fact, and the verifier fails if a declared limit has no test of the name it
+claims.
 
 ## Verifying
 
@@ -233,12 +310,15 @@ behind the code it documents.
 npm install
 npm test
 npm run verify
+npm run exit-codes
+npm run entry-thin
+npm run count-tests
 ```
 
-50 tests. Two fixture sites are served locally and audited end to end: one built
-wrong on purpose, and one built correctly, which is the more useful of the two.
-A tool that reports something on every page is easy to write and gets its
-findings ignored wholesale. The clean fixture asserts the audit stays quiet
+114 tests. Two fixture sites are served locally and audited end to end: one
+built wrong on purpose, and one built correctly, which is the more useful of
+the two. A tool that reports something on every page is easy to write and gets
+its findings ignored wholesale. The clean fixture asserts the audit stays quiet
 when the page is right.
 
 The suite also covers the cases that are easy to get wrong: a present but
@@ -248,13 +328,35 @@ rendered in the report, and a module that failed to run failing the budget
 instead of passing it.
 
 `npm run verify` asks a different question. Instead of auditing a page it makes
-351 assertions about this repository: that every file in `test/` is
-named in the test script, so a new test cannot be added and silently never run;
-that the Node range above is one the dependency tree can install on; that CI
-runs more than one Node version and runs the oldest one claimed; that the
-thresholds quoted in this README are the thresholds the code uses; and that the
-catalogue and the modules agree. It runs in CI on every push, and it found four
-real defects in this repository the first time it was pointed at it.
+1024 repository assertions: that every file in `test/` is named in the test
+script, so a new test cannot be added and silently never run; that the Node
+version below is one the dependency tree can install on and that CI pins it
+exactly rather than naming its major line; that the thresholds and the counts
+quoted in this README are the ones the code holds; that every declared limit
+has a test; and that the catalogue, the severity table, the pairs and the
+modules all agree.
+
+Each count this README states is matched as a whole line, and the check fails
+unless exactly one line matches. Matching a number with a pattern against the
+whole file is not a check: a number that wraps across two lines is never
+matched and silently passes, and a number that appears twice is checked once.
+
+`npm run exit-codes` runs the real binary over all 30 example sides and
+compares the exit code with one derived from the pair manifest, the severity
+table and the default budgets. Nothing in that tool keeps its own list of
+expected codes, because a tool with its own table agrees with itself.
+
+`npm run entry-thin` fails the build if a decision moves back into
+`bin/site-audit.mjs`, which is the one file here no test can drive, since
+importing it runs it. Everything it used to decide is in `src/cli.mjs`, which
+takes its streams, its filesystem and its audit function as arguments and is
+driven with stubs.
+
+`npm run count-tests` is where the test count above comes from. It runs the
+files the `test` script names through a counting reporter, because every other
+way of getting this number has been wrong on some Node version in the
+supported range: the same suite prints `# tests 114` on one line of Node and
+`info tests 114` on another.
 
 ## Scope, honestly
 
@@ -268,6 +370,26 @@ Blocking Time is collected in its place and labelled as the proxy it is.
 The crawler is breadth-first, same-origin and HTML only. It exists so an audit
 covers the handful of templates a site actually has rather than the homepage
 alone. It is not a site crawler and does not pretend to be one.
+
+Four defects were found in this repository while the work above was being
+done, and all four had shipped. The worst of them was in the entry point: npm
+installs a `bin` as a symlink, Node resolves a module path to its real path,
+and the guard deciding whether the file was being run directly compared the
+two as strings. They never matched, so the installed `site-audit` command
+printed nothing and exited 0 for every user who installed this package the
+documented way, while every test passed. The others were a canonical check
+that only ever read the first of several tags, so the finding set moved when
+the source order moved; the HSTS header described above; and a `ttfbMs` budget
+that a config file could set, that `mergeBudgets` merged, and that nothing
+ever read.
+
+## The documents
+
+- `docs/01-what-a-scanner-cannot-see.md` - the argument behind the manual register
+- `docs/02-budgets-and-ci.md` - putting the exit code in a pipeline
+- `docs/03-report-anatomy.md` - what each part of the report is for
+- `docs/04-every-finding.md` - generated from the catalogue, checked in CI
+- `docs/05-examples-and-limits.md` - how the pairs and the declared limits are asserted
 
 ## Related
 
