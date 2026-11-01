@@ -8,24 +8,87 @@ on:
 
 jobs:
   test:
+    # Exact versions, never a bare major. `actions/setup-node` resolves '22'
+    # to the newest release of the 22 line, so a job named after a major
+    # tests whatever shipped most recently rather than the version
+    # package.json promises. The first entry is that promised floor.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22', '24']
+        node-version: ['22.12.0', '22.23.4', '24.11.1']
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm install
-      - run: npm run check
       - run: npm test
+      # The verifier runs the suite again to count it, which would double the
+      # slowest step in every matrix leg. The count job below does it once.
+      # The two assertions are still made either way, so the assertion total
+      # does not move with this flag.
       - run: npm run verify
+        env:
+          SKIP_TEST_COUNT: '1'
       - run: npm run docs -- --check
 
+  count:
+    # The test count the README states, produced by running the tests through
+    # a counting reporter rather than by parsing reporter text, which prints
+    # differently on different Node versions.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - run: npm install
+      - run: npm run count-tests
+      - run: npm run verify
+
+  exit-codes:
+    # Runs the real binary over every example side and checks the exit code
+    # against one derived from the pair manifest and the severity table. The
+    # suite drives the modules and the CLI module; neither of them runs the
+    # file a user executes, and that file once did nothing at all.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - run: npm install
+      - run: npm run exit-codes
+
+  entry-thin:
+    # Fails if a decision moves back into bin/site-audit.mjs, which is the
+    # one file in this repository no test can drive.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - run: npm run entry-thin
+
+  tracked:
+    # The verifier counts and reads tracked files, using its own gitignore
+    # matcher. This is the only check that the matcher agrees with git rather
+    # than with itself. It is `node tools/tracked.mjs` and not `npm run`,
+    # because npm writes a banner to stdout and the redirect would capture it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - run: node tools/tracked.mjs | sort > /tmp/matcher.txt
+      - run: git ls-files | sort > /tmp/git.txt
+      - run: diff /tmp/matcher.txt /tmp/git.txt
+
   engines:
-    # package.json claims a minimum Node version. This job installs on exactly
+    # package.json claims a minimum Node version. This installs on exactly
     # that version with npm enforcing every engines range in the tree, so the
     # claim is tested rather than asserted.
     runs-on: ubuntu-latest
