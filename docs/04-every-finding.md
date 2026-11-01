@@ -2,7 +2,7 @@
 
 Generated from `src/catalogue.mjs` by `npm run docs`. Do not edit by hand.
 
-53 catalogued findings, 3 open families and
+54 catalogued findings, 3 open families and
 11 manual checks.
 
 The right-hand column is the part worth reading. "Driven in a test" means
@@ -70,6 +70,7 @@ repository refuses to ship one quietly.
 | `sec/non-ok-status` | The server answered with something other than a 2xx status. | yes |
 | `sec/hsts-missing` | No Strict-Transport-Security header on an HTTPS page. | yes |
 | `sec/hsts-short` | Strict-Transport-Security max-age is under six months, or is zero. | yes |
+| `sec/hsts-invalid` | Strict-Transport-Security is present with no max-age directive, so the whole header is discarded. | yes |
 | `sec/hsts-no-subdomains` | Strict-Transport-Security omits includeSubDomains. | yes |
 | `sec/csp-missing` | No Content-Security-Policy on an HTML response. | yes |
 | `sec/csp-report-only` | A policy exists but is measured rather than enforced. | yes |
