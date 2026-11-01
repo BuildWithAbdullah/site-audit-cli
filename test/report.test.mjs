@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderHtml } from '../src/report/html.mjs';
 import { renderMarkdown } from '../src/report/markdown.mjs';
 import { renderTerminal } from '../src/report/terminal.mjs';
-import { parseArgs } from '../bin/site-audit.mjs';
+import { parseArgs } from '../src/cli.mjs';
 
 const report = {
   tool: { name: 'site-audit-cli', version: '1.0.0' },

@@ -6,7 +6,13 @@ import { auditSeo } from '../src/checks/seo.mjs';
 import { judgePerformance } from '../src/checks/performance.mjs';
 import { judgeAccessibility } from '../src/checks/accessibility.mjs';
 import { runAudit } from '../src/audit.mjs';
-import { CATALOGUE, OPEN_FAMILIES, REACHABLE_IDS, isCatalogued } from '../src/catalogue.mjs';
+import {
+  CATALOGUE,
+  OPEN_FAMILIES,
+  REACHABLE_IDS,
+  isCatalogued,
+  severitiesFor,
+} from '../src/catalogue.mjs';
 
 /**
  * Reachability. The point of this file is not that each check is correct,
@@ -21,8 +27,13 @@ import { CATALOGUE, OPEN_FAMILIES, REACHABLE_IDS, isCatalogued } from '../src/ca
  */
 
 const produced = new Set();
+const severitiesSeen = new Map();
 const record = (findings) => {
-  for (const f of findings) produced.add(f.id);
+  for (const f of findings) {
+    produced.add(f.id);
+    if (!severitiesSeen.has(f.id)) severitiesSeen.set(f.id, new Set());
+    severitiesSeen.get(f.id).add(f.severity);
+  }
   return findings.map((f) => f.id);
 };
 
@@ -315,6 +326,184 @@ test('the browser-free modules still report when Chrome is missing', async () =>
     if (previous === undefined) delete process.env.PUPPETEER_EXECUTABLE_PATH;
     else process.env.PUPPETEER_EXECUTABLE_PATH = previous;
   }
+});
+
+test('every severity branch is driven, not only the one that was convenient', () => {
+  /**
+   * Ten findings choose their severity from the value they found, and before
+   * the catalogue declared the severities each id can carry, only one side of
+   * each of those ten had ever run. Declaring the set and asserting it in
+   * both directions is what forces the other side, and the other side is
+   * where `sec/hsts-invalid` came from: a header with no max-age directive
+   * parsed as a max-age of zero, so the most broken form of the header was
+   * reported as a deliberate decision to switch the policy off.
+   */
+  const resp = (extra = {}) => ({
+    finalUrl: 'https://example.com/page',
+    status: 200,
+    headers: {},
+    setCookie: [],
+    body: '',
+    isHtml: true,
+    ...extra,
+  });
+
+  // sec/non-ok-status: critical on a server error, serious on a client one.
+  record(auditSecurity(resp({ status: 404 })));
+
+  // sec/hsts-short: serious when the policy is explicitly switched off.
+  record(auditSecurity(resp({ headers: { 'strict-transport-security': 'max-age=0' } })));
+
+  // sec/hsts-invalid: present, and discarded in full, because max-age is the
+  // only required directive.
+  record(auditSecurity(resp({ headers: { 'strict-transport-security': 'includeSubDomains' } })));
+
+  // sec/csp-no-frame-ancestors: minor when X-Frame-Options still protects the
+  // page, moderate when nothing does.
+  record(
+    auditSecurity(
+      resp({
+        headers: {
+          'content-security-policy': "default-src 'self'",
+          'x-frame-options': 'DENY',
+        },
+      }),
+    ),
+  );
+
+  // sec/cookie-: minor when HttpOnly is there and something else is not.
+  record(auditSecurity(resp({ setCookie: ['prefs=dark; Path=/; Secure; HttpOnly'] })));
+
+  // Every performance finding that chooses between two severities, driven at
+  // both ends: just over its budget, and far over it.
+  const metrics = (over = {}) => ({
+    lcpMs: 0,
+    lcpElement: null,
+    lcpPhases: null,
+    cls: 0,
+    largestShiftSource: null,
+    tbtMs: 0,
+    longestTaskMs: 0,
+    ttfbMs: 0,
+    totalBytes: 0,
+    bytesByType: {},
+    renderBlocking: [],
+    oversizedImages: [],
+    thirdPartyBytes: 0,
+    thirdPartyHosts: [],
+    ...over,
+  });
+  const budgets = { lcpMs: 2500, clsScore: 0.1, tbtMs: 200, ttfbMs: 800, totalBytes: 2_000_000 };
+  for (const over of [
+    { lcpMs: 2600 },
+    { lcpMs: 9000 },
+    { cls: 0.11 },
+    { cls: 0.4 },
+    { tbtMs: 210 },
+    { tbtMs: 900 },
+    { ttfbMs: 810 },
+    { ttfbMs: 5000 },
+    { totalBytes: 2_100_000, bytesByType: { script: 2_100_000 } },
+    { totalBytes: 9_000_000, bytesByType: { script: 9_000_000 } },
+    { renderBlocking: ['/a.css'] },
+    { renderBlocking: ['/a.css', '/b.css', '/c.css', '/d.css', '/e.js', '/f.js'] },
+  ]) {
+    record(judgePerformance(metrics(over), budgets));
+  }
+
+  // The accessibility family takes its severity from the axe impact, so all
+  // four are driven from four violations in one pass.
+  const axe = (impact) => ({
+    id: `rule-${impact}`,
+    impact,
+    help: 'help',
+    description: 'description',
+    helpUrl: 'https://example.test/rule',
+    tags: ['wcag2a'],
+    nodes: [{ target: ['div'] }],
+  });
+  record(
+    judgeAccessibility({
+      violations: ['critical', 'serious', 'moderate', 'minor'].map(axe),
+      passes: [],
+      incomplete: [],
+      inapplicable: [],
+    }).findings,
+  );
+});
+
+test('the canonical finding set does not depend on the source order of the tags', async () => {
+  // The regression test for a defect that shipped. Only the first canonical
+  // link was ever examined, so a page with a usable first canonical and a
+  // broken second one reported nothing about the broken one, and the same two
+  // tags in the other order reported it. No engine treats these as ordered.
+  const page = (head) => ({
+    finalUrl: 'https://example.com/page',
+    headers: {},
+    body: `<head>${head}</head>`,
+    isHtml: true,
+    redirectChain: [],
+  });
+  const good = '<link rel="canonical" href="https://example.com/page">';
+  const broken = '<link rel="canonical" href="http://%">';
+  const ids = async (head) =>
+    record(await auditSeo(page(head), { fetchRobots: false }))
+      .slice()
+      .sort();
+
+  const forwards = await ids(good + broken);
+  const backwards = await ids(broken + good);
+  assert.deepEqual(forwards, backwards);
+  assert.ok(forwards.includes('seo/canonical-invalid'));
+  assert.ok(forwards.includes('seo/canonical-multiple'));
+
+  // And with two canonicals there is no canonical, so no claim is made about
+  // where it points. Reporting the first tag's destination on such a page
+  // stated something about the page that was not true of it.
+  const two = await ids(
+    '<link rel="canonical" href="https://elsewhere.test/x"><link rel="canonical" href="https://example.com/page">',
+  );
+  assert.ok(!two.includes('seo/canonical-cross-origin'));
+  assert.ok(!two.includes('seo/canonical-mismatch'));
+
+  // One canonical, and the claim is made.
+  const one = await ids('<link rel="canonical" href="https://elsewhere.test/x">');
+  assert.ok(one.includes('seo/canonical-cross-origin'));
+});
+
+test('every severity a finding was emitted at is declared, and every declared severity was emitted', () => {
+  const problems = [];
+  for (const id of [...severitiesSeen.keys()].sort()) {
+    const declared = severitiesFor(id);
+    if (!declared) {
+      problems.push(`${id} was emitted and is not catalogued at all`);
+      continue;
+    }
+    for (const severity of severitiesSeen.get(id)) {
+      if (!declared.includes(severity)) {
+        problems.push(`${id} was emitted at ${severity}, which the catalogue does not list`);
+      }
+    }
+  }
+  // The direction that forces the work: a declared severity nobody has ever
+  // produced is as much a claim as an undeclared one, and the open families
+  // are exempt only because their suffix comes from the page.
+  for (const entry of CATALOGUE) {
+    if (!entry.reachable) continue;
+    const seen = severitiesSeen.get(entry.id);
+    if (!seen) {
+      problems.push(`${entry.id} is catalogued as reachable and no test produced it`);
+      continue;
+    }
+    for (const severity of entry.severities) {
+      if (!seen.has(severity)) {
+        problems.push(
+          `${entry.id} declares it can be ${severity} and no test has ever produced that`,
+        );
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
 });
 
 // This runs last on purpose: it reads what every test above produced.
