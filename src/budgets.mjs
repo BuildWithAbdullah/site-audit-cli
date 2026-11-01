@@ -2,7 +2,7 @@ import { countBySeverity } from './util/severity.mjs';
 
 export const DEFAULT_BUDGETS = {
   accessibility: { critical: 0, serious: 0 },
-  performance: { lcpMs: 2500, clsScore: 0.1, tbtMs: 200, totalBytes: 2_000_000 },
+  performance: { lcpMs: 2500, clsScore: 0.1, tbtMs: 200, ttfbMs: 800, totalBytes: 2_000_000 },
   seo: { critical: 0, serious: 1 },
   security: { critical: 0, serious: 3 },
 };
@@ -46,6 +46,9 @@ export function evaluateBudgets(pages, budgets = DEFAULT_BUDGETS) {
       ['lcpMs', worst((m) => m.lcpMs), 'ms'],
       ['clsScore', worst((m) => m.cls), 'score'],
       ['tbtMs', worst((m) => m.tbtMs), 'ms'],
+      // Added with the fix for a budget that was accepted and ignored: a run
+      // could report perf/ttfb and still report every performance budget met.
+      ['ttfbMs', worst((m) => m.ttfbMs), 'ms'],
       ['totalBytes', worst((m) => m.totalBytes), 'bytes'],
     ];
     for (const [metric, actual, unit] of map) {
