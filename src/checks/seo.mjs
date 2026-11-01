@@ -110,25 +110,58 @@ function checkCanonical($, finalUrl) {
       }),
     );
   }
-  const href = links.first().attr('href');
-  if (!href) return out;
+  /**
+   * Every canonical link is examined, not only the first.
+   *
+   * It used to read `links.first()`, which meant a page with a usable first
+   * canonical and a broken second one reported nothing about the broken one,
+   * while the same two tags in the other order reported it. The finding set
+   * moved when the source order moved, and no search engine treats these as
+   * ordered, so two pages that are the same page produced two different
+   * reports. The regression test asserts both orders give one set.
+   *
+   * The parse check is therefore per href. The cross-origin and mismatch
+   * judgements are only made when there is exactly one canonical, because
+   * both are claims about where the canonical points, and a page carrying
+   * two conflicting ones does not have a canonical that points anywhere.
+   * Reporting the first tag's destination on such a page stated something
+   * about the page that was not true of it.
+   */
+  const hrefs = links
+    .map((_, el) => $(el).attr('href'))
+    .get()
+    .filter((h) => h !== undefined);
 
-  let resolved;
-  try {
-    resolved = new URL(href, finalUrl);
-  } catch {
+  const unparseable = [];
+  const parsed = [];
+  for (const href of hrefs) {
+    try {
+      parsed.push(new URL(href, finalUrl));
+    } catch {
+      unparseable.push(href);
+    }
+  }
+
+  if (unparseable.length > 0) {
     out.push(
       finding({
         id: 'seo/canonical-invalid',
         module: 'seo',
         severity: 'serious',
-        title: 'Canonical href is not a valid URL',
-        detail: 'An unparseable canonical is ignored, silently.',
-        evidence: truncate(href, 140),
+        title:
+          unparseable.length === 1
+            ? 'Canonical href is not a valid URL'
+            : `${unparseable.length} canonical hrefs are not valid URLs`,
+        detail:
+          'A canonical that does not parse is discarded, and nothing warns anywhere a site owner looks. The usual cause is a template emitting a placeholder it never filled in.',
+        evidence: truncate(unparseable.join(' | '), 140),
+        count: unparseable.length,
       }),
     );
-    return out;
   }
+
+  if (hrefs.length !== 1 || parsed.length !== 1) return out;
+  const resolved = parsed[0];
 
   if (resolved.origin !== new URL(finalUrl).origin) {
     out.push(

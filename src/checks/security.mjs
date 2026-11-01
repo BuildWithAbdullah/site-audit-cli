@@ -71,7 +71,33 @@ function checkHsts(headers, https) {
       }),
     ];
   }
-  const maxAge = Number((raw.match(/max-age\s*=\s*(\d+)/i) || [])[1] || 0);
+  /**
+   * A header with no max-age directive is not a header with a max-age of
+   * zero, and reporting it as one was wrong in the way that matters.
+   *
+   * `Number(undefined || 0)` is 0, so `Strict-Transport-Security:
+   * includeSubDomains` produced the zero-max-age finding, whose stated
+   * meaning is that somebody deliberately switched the policy off. It also
+   * produced no subdomain finding, because the directive is there. So the
+   * most broken form of this header read as a considered decision with good
+   * subdomain coverage. max-age is the only required directive: without it
+   * the whole header is ignored and the site has no HSTS at all.
+   */
+  const declared = raw.match(/max-age\s*=\s*(\d+)/i);
+  if (!declared) {
+    return [
+      finding({
+        id: 'sec/hsts-invalid',
+        module: 'security',
+        severity: 'serious',
+        title: 'Strict-Transport-Security has no max-age',
+        detail:
+          'max-age is the only required directive, so this header is discarded in full and the site has no HSTS. It is worse than an absent header, because every presence check that looks for the header name passes.',
+        evidence: truncate(raw, 140),
+      }),
+    ];
+  }
+  const maxAge = Number(declared[1]);
   const out = [];
   if (maxAge < 15552180) {
     out.push(

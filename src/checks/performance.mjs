@@ -80,12 +80,24 @@ export function judgePerformance(metrics, budgets = {}) {
     );
   }
 
-  if (metrics.ttfbMs > 800) {
+  /**
+   * The one threshold here that was not a budget.
+   *
+   * Every other number in this function reads `budgets.x ?? default`, and
+   * this one read a literal 800. `mergeBudgets` accepts
+   * `performance.ttfbMs` from a config file without complaint, merges it,
+   * and nothing ever looked at it, so a config that set it changed nothing
+   * and said nothing. The budget evaluator had no row for it either, which
+   * meant a run could report a TTFB finding and still report that every
+   * performance budget was met.
+   */
+  const ttfbBudget = budgets.ttfbMs ?? 800;
+  if (metrics.ttfbMs > ttfbBudget) {
     findings.push(
       finding({
         id: 'perf/ttfb',
         module: 'performance',
-        severity: metrics.ttfbMs > 1800 ? 'serious' : 'moderate',
+        severity: metrics.ttfbMs > ttfbBudget * 2.25 ? 'serious' : 'moderate',
         title: `Time to First Byte is ${Math.round(metrics.ttfbMs)}ms`,
         detail:
           'The browser was idle for this long before the first byte arrived. No amount of front-end optimisation moves this number; it is server, database, or a missing page cache.',
